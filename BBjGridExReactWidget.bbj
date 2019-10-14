@@ -1,0 +1,153 @@
+rem /**
+rem  * This file is part of the BBjGridExWidget plugin.
+rem  * (c) Basis Europe <eu@basis.com>
+rem  *
+rem  * For the full copyright and license information, please view the LICENSE
+rem  * file that was distributed with this source code.
+rem  */
+use ::BBjGridExWidget/BBjGridExWidget.bbj::BBjGridExWidget
+use ::ReactContainerWidget/ReactContainerWidget.bbj::ReactContainerWidget
+use ::ReactContainerWidget/ReactContainerWidget.bbj::ReactElement
+use ::ReactContainerWidget/ReactContainerWidget.bbj::SignalSubscriber
+use com.google.gson.Gson
+use java.util.HashMap
+
+class public BBjGridExReactWidget extends BBjGridExWidget implements SignalSubscriber
+
+    field public ReactContainerWidget Container! = null()
+    field public ReactElement Root! = null()
+
+    method public BBjGridExReactWidget(ReactContainerWidget container!, ReactElement root!)
+        #Container! = container!
+        #Root! = root!
+        #setHTMLView(container!.getHTMLView())
+        container!.subscribe("init", #this!)
+        container!.subscribe("ready", #this!)
+        container!.subscribe("processEventsRenderer", #this!)
+        container!.subscribe("nativeEvent", #this!)
+    methodend
+
+    method public void onSignalReceived(BBjString topic! , Object payload!)
+        switch topic!
+            case "init"
+                #onInit()
+                break
+            case "render"
+                #render()
+                break
+            case "processEventsRenderer"
+                #onReady()
+                break
+            case "nativeEvent"
+                event! = cast(BBjNativeJavaScriptEvent , cast(HashMap , payload!).get("event"))
+                if(event!.getEventMap().containsKey("isReact") <> BBjAPI.TRUE)
+                    #onNativeEvent(event!)
+                fi
+
+                break
+        swend
+    methodend
+    rem /**
+    rem  * init Method
+    rem  *
+    rem  * @return void
+    rem  */
+    method protected void onInit()
+        gridContainer! = new ReactElement(#super!.getGRIDID() ,"div")
+        gridContainer!.getProps().put("className","ag-theme-balham")
+        gridContainer!.getProps().put("style", "{""width"": ""inherit"",""height"": ""inherit""}")
+        #getRoot().addElement(gridContainer!)
+        isLicensed! = 0
+
+        if (#getForceCommunityBuild() = 0) then
+            isLicensed! = #isLicensed()
+        FI
+
+        bui = INFO(3,6)="5"
+        ch=unt
+        distBase$ = "BBjGridExWidget/client/dist"
+        rem include the grid
+        if #getDebug() = 1 then
+            if bui then
+                gridPath$ = iff(isLicensed!,distBase$ + "/bui/ag-grid-enterprise.noStyle.js",distBase$ +"/bui/ag-grid-community.noStyle.js")
+            else
+                gridPath$ = iff(isLicensed!,distBase$ + "/ag-grid-enterprise.noStyle.js",distBase$ +"/ag-grid-community.noStyle.js")
+            FI
+        else
+            if bui then
+                gridPath$ = iff(isLicensed!,distBase$ + "/bui/ag-grid-enterprise.min.noStyle.js",distBase$ +"/bui/ag-grid-community.min.noStyle.js")
+            else
+                gridPath$ = iff(isLicensed!,distBase$ + "/ag-grid-enterprise.min.noStyle.js",distBase$ +"/ag-grid-community.min.noStyle.js")
+            FI
+        FI
+
+        open (ch)gridPath$
+        read record (ch,siz=5512000)script$
+        close (ch)
+        s$=script$
+        rem include locale files
+        locale! = #getLanguageManager().getLanguage()
+        locale$ = str(locale!.replaceAll("_","-").replaceAll("_","-"))
+        dateJsLocalePath$ = distBase$ + "/../vendor/Datejs/build/date-" + locale$ + ".js"
+        isLocale = 0
+        ch=unt
+        open (ch,err=*next)dateJsLocalePath$;isLocale=1
+
+        if isLocale = 0 then
+            close (ch)
+            dateJsLocalePath$ = distBase$ + "/i18n/Datejs/" + locale$ + ".js"
+            open (ch,err=*next)dateJsLocalePath$;isLocale=1
+        fi
+
+        if isLocale = 1 then
+            read record (ch,siz=5512000)script$
+            close (ch)
+            s$=s$+script$
+        else
+            a=msgbox("Error loading library for locale "+locale$,0,"Error")
+        fi
+
+        ch=unt
+
+        if #getDebug() = 1 then
+            open (ch) distBase$ + "/bbj-grid-widget.js"
+        else
+            open (ch) distBase$ + "/bbj-grid-widget.min.js"
+        FI
+
+        read record (ch,siz=5512000)script$
+        close (ch)
+        s$=s$+script$
+        #injectScript(s$)
+    methodend
+
+    method public void onReady()
+        #setIsReady( BBjAPI.TRUE)
+        rem setup license stuff
+        #getLicenseManager().register(#this!)
+
+        if(#getOptions().getBlockRenderToReady() = 1) then
+            #render()
+        FI
+
+        firstScripts$  = ""
+        secondScripts$ = ""
+        it! = #getbacklog().iterator()
+        while it!.hasNext() = BBjAPI.TRUE
+            next!=str(it!.next())
+
+            if(next!.contains("gw_init"))
+                firstScripts$ = firstScripts$ + str(next!) + ";"
+            FI
+
+            secondScripts$ = secondScripts$ + str(next!) + ";"
+        wend
+
+        #setbacklog(new BBjVector())
+        scripts$ =  firstScripts$ + secondScripts$
+
+        if(scripts$ > "") then
+            #getHTMLView().executeScript(scripts$)
+        FI
+    methodend
+classend

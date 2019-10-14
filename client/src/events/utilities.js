@@ -38,7 +38,7 @@ export function gw_sendEvent(context, payload = {}, eventId = []) {
   const registeredInterests = context.interests || [];
 
   if (registeredInterests.includes(eventId)) {
-    const div = gw_getDocument().getElementById(`event-bridge-${context.id}`);
+    const div = gw_getDocument().getElementById(`event-bridge`);
     const event = new CustomEvent('click');
 
     event.payload = payload;
