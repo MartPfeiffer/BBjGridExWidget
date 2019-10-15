@@ -473,7 +473,7 @@ class public BBjGridExWidget extends BBjWidget implements BBjGridExWidgetColumns
     rem /**
     rem  * disabled default constructor
     rem  */
-    method private BBjGridExWidget()
+    method protected BBjGridExWidget()
     methodend
     rem /**
     rem  * The constructor that creates the widget on wnd!
